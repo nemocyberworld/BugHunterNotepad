@@ -40,6 +40,6 @@ Try it live by opening the `index.html` file in your browser.
 No installation needed! Just clone or download the repository and open `index.html` in any modern web browser.
 
 ```bash
-git clone https://github.com/yourusername/bug-hunter-notepad.git
+git clone https://github.com/nemocyberworld/bug-hunter-notepad.git
 cd bug-hunter-notepad
 # Open index.html in browser
