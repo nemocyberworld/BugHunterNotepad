@@ -8,6 +8,9 @@
   <style>
     textarea { resize: vertical; }
     summary::-webkit-details-marker { display: none; }
+    summary {
+      cursor: pointer;
+    }
   </style>
 </head>
 <body class="bg-gray-900 text-white font-mono min-h-screen">
@@ -63,6 +66,16 @@
   </div>
 
   <script>
+    // Data structure:
+    // categories: {
+    //   categoryName: {
+    //     subcategories: {
+    //       subcategoryName: [
+    //         { title: '', note: '' }
+    //       ]
+    //     }
+    //   }
+    // }
     let data = JSON.parse(localStorage.getItem('bugHunterData')) || {};
     let selectedCategory = null;
 
@@ -70,84 +83,211 @@
       localStorage.setItem('bugHunterData', JSON.stringify(data));
     }
 
+    // Add new category
     function addCategory() {
       const name = document.getElementById('newCategory').value.trim();
-      if (!name || data[name]) return alert("Invalid or duplicate category name!");
-      data[name] = [];
+      if (!name) return alert("Category name cannot be empty!");
+      if (data[name]) return alert("Category already exists!");
+      data[name] = { subcategories: {} };
       document.getElementById('newCategory').value = '';
       saveData();
       renderSidebar();
       renderCategories();
     }
 
-    function addItem(category) {
-      const title = prompt("Enter item name:");
+    // Add subcategory inside category
+    function addSubcategory(category) {
+      const name = prompt("Enter subcategory name:");
+      if (!name) return;
+      if (data[category].subcategories[name]) {
+        alert("Subcategory already exists!");
+        return;
+      }
+      data[category].subcategories[name] = [];
+      saveData();
+      renderCategories();
+    }
+
+    // Add item inside category/subcategory
+    function addItem(category, subcategory) {
+      const title = prompt("Enter item title:");
       if (!title) return;
-      data[category].push({ title, note: '' });
+      data[category].subcategories[subcategory].push({ title, note: '' });
       saveData();
       renderCategories();
     }
 
-    function deleteItem(category, index) {
+    // Delete item
+    function deleteItem(category, subcategory, index) {
       if (!confirm("Delete this item?")) return;
-      data[category].splice(index, 1);
+      data[category].subcategories[subcategory].splice(index, 1);
       saveData();
       renderCategories();
     }
 
-    function updateNote(category, index, value) {
-      data[category][index].note = value;
+    // Delete subcategory
+    function deleteSubcategory(category, subcategory) {
+      if (!confirm(`Delete subcategory "${subcategory}" and all its items?`)) return;
+      delete data[category].subcategories[subcategory];
+      saveData();
+      renderCategories();
+    }
+
+    // Delete category
+    function deleteCategory(category) {
+      if (!confirm(`Delete entire category "${category}" and all its subcategories?`)) return;
+      delete data[category];
+      saveData();
+      renderSidebar();
+      renderCategories();
+    }
+
+    // Update note text for an item
+    function updateNote(category, subcategory, index, value) {
+      data[category].subcategories[subcategory][index].note = value;
       saveData();
     }
 
+    // Render sidebar with categories (click to select)
     function renderSidebar() {
       const nav = document.getElementById('sidebarMenu');
       nav.innerHTML = '';
       Object.keys(data).forEach(cat => {
+        const div = document.createElement('div');
+        div.className = 'flex justify-between items-center';
+
         const btn = document.createElement('button');
         btn.textContent = cat;
-        btn.className = 'block w-full text-left px-3 py-2 rounded hover:bg-green-700 ' + (selectedCategory === cat ? 'bg-green-700' : '');
+        btn.className = 'text-left px-3 py-2 rounded hover:bg-green-700 flex-1 ' + (selectedCategory === cat ? 'bg-green-700' : '');
         btn.onclick = () => {
           selectedCategory = cat;
           renderSidebar();
           renderCategories();
         };
-        nav.appendChild(btn);
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑️';
+        delBtn.title = `Delete category "${cat}"`;
+        delBtn.className = 'text-red-500 hover:text-red-700 ml-2';
+        delBtn.onclick = (e) => {
+          e.stopPropagation();
+          deleteCategory(cat);
+        };
+
+        div.appendChild(btn);
+        div.appendChild(delBtn);
+        nav.appendChild(div);
       });
     }
 
+    // Render main categories, subcategories, and items with collapsible details
     function renderCategories() {
       const container = document.getElementById('categories');
       container.innerHTML = '';
-      const categories = selectedCategory ? [selectedCategory] : Object.keys(data);
-      categories.forEach(category => {
+      const categoriesToRender = selectedCategory ? [selectedCategory] : Object.keys(data);
+
+      categoriesToRender.forEach(category => {
         const section = document.createElement('section');
 
+        // Category header with add subcategory & delete category buttons
         const header = document.createElement('div');
         header.className = 'flex justify-between items-center mb-2';
         header.innerHTML = `
-          <h2 class="text-2xl text-green-400 font-bold">📂 ${category}</h2>
-          <button onclick="addItem('${category}')" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm">➕ Add Item</button>`;
-
-        const list = document.createElement('div');
-        list.className = 'space-y-4 mt-2';
-        data[category].forEach((item, idx) => {
-          const div = document.createElement('div');
-          div.className = 'bg-gray-800 border border-green-700 p-4 rounded';
-
-          div.innerHTML = `
-            <div class="flex justify-between items-center mb-2">
-              <strong class="text-green-300 text-lg">${item.title}</strong>
-              <button onclick="deleteItem('${category}', ${idx})" class="text-red-400 text-sm">Delete</button>
-            </div>
-            <textarea class="w-full bg-gray-700 border border-green-500 p-2 rounded" rows="5"
-              oninput="updateNote('${category}', ${idx}, this.value)">${item.note}</textarea>`;
-
-          list.appendChild(div);
-        });
-
+          <h2 class="text-2xl text-green-400 font-bold flex items-center gap-2">📂 ${category}</h2>
+          <div>
+            <button onclick="addSubcategory('${category}')" class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm mr-2">➕ Add Subcategory</button>
+            <button onclick="deleteCategory('${category}')" class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm">🗑️ Delete Category</button>
+          </div>
+        `;
         section.appendChild(header);
-        section.appendChild(list);
+
+        // Container for subcategories
+        const subcatContainer = document.createElement('div');
+        subcatContainer.className = 'space-y-4 mt-2';
+
+        const subcategories = data[category].subcategories;
+        if (Object.keys(subcategories).length === 0) {
+          // If no subcategories, show a message
+          const msg = document.createElement('p');
+          msg.className = 'text-gray-500 italic';
+          msg.textContent = 'No subcategories. Add one above!';
+          subcatContainer.appendChild(msg);
+        } else {
+          // Render subcategories
+          Object.keys(subcategories).forEach(subcat => {
+            const details = document.createElement('details');
+            details.className = 'bg-gray-800 border border-green-700 rounded p-4';
+            // Open by default only if this category is selected and no others opened yet
+            details.open = false;
+
+            const summary = document.createElement('summary');
+            summary.className = 'flex justify-between items-center cursor-pointer text-green-300 font-semibold text-lg';
+            summary.textContent = subcat;
+
+            // Delete subcategory button
+            const delSubcatBtn = document.createElement('button');
+            delSubcatBtn.textContent = '🗑️';
+            delSubcatBtn.title = `Delete subcategory "${subcat}"`;
+            delSubcatBtn.className = 'text-red-500 hover:text-red-700 ml-2 text-sm';
+            delSubcatBtn.onclick = (e) => {
+              e.stopPropagation();
+              deleteSubcategory(category, subcat);
+            };
+
+            summary.appendChild(delSubcatBtn);
+            details.appendChild(summary);
+
+            // Button to add item inside this subcategory
+            const addItemBtn = document.createElement('button');
+            addItemBtn.textContent = '➕ Add Item';
+            addItemBtn.className = 'bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm my-2';
+            addItemBtn.onclick = () => addItem(category, subcat);
+
+            details.appendChild(addItemBtn);
+
+            // List items inside subcategory
+            const itemList = document.createElement('div');
+            itemList.className = 'space-y-4 mt-2';
+
+            subcategories[subcat].forEach((item, idx) => {
+              const itemDetails = document.createElement('details');
+              itemDetails.className = 'bg-gray-700 border border-green-500 rounded p-3';
+
+              const itemSummary = document.createElement('summary');
+              itemSummary.className = 'flex justify-between items-center cursor-pointer text-green-200 font-medium';
+              itemSummary.textContent = item.title;
+
+              // Delete item button
+              const delItemBtn = document.createElement('button');
+              delItemBtn.textContent = '🗑️';
+              delItemBtn.title = `Delete item "${item.title}"`;
+              delItemBtn.className = 'text-red-400 hover:text-red-600 ml-2 text-xs';
+              delItemBtn.onclick = (e) => {
+                e.stopPropagation();
+                deleteItem(category, subcat, idx);
+              };
+
+              itemSummary.appendChild(delItemBtn);
+              itemDetails.appendChild(itemSummary);
+
+              // Note textarea
+              const textarea = document.createElement('textarea');
+              textarea.className = 'w-full bg-gray-600 border border-green-400 p-2 rounded mt-2 resize-y';
+              textarea.rows = 5;
+              textarea.value = item.note;
+              textarea.oninput = (e) => updateNote(category, subcat, idx, e.target.value);
+
+              itemDetails.appendChild(textarea);
+
+              itemList.appendChild(itemDetails);
+            });
+
+            details.appendChild(itemList);
+            subcatContainer.appendChild(details);
+          });
+        }
+
+        section.appendChild(subcatContainer);
         container.appendChild(section);
       });
     }
@@ -189,7 +329,6 @@
         }
       };
       reader.readAsText(file);
-      // Clear the input so same file can be imported again if needed
       event.target.value = '';
     }
 
@@ -204,6 +343,7 @@
       }
     }
 
+    // Initial render
     renderSidebar();
     renderCategories();
   </script>
